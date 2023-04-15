@@ -1,0 +1,87 @@
+import "io"
+import "heap"
+
+// This is just a convenient way to test a newvec/freevec system thoroughly.
+// It adds nothing of substance.
+
+manifest {
+    freelistSizeMax = 1000, minChunkSize = 8,
+    bsize_i = 0, usedOrFree_i = 1, next_i = 2, prev_i = 3, // for chunk addressing, bsize = size at beginning of chunk
+    free_id = 98989898, used_id = 12121212
+} 
+
+let start() be
+{ 
+  let heap_free_or_used = usedOrFree_i, heap_free = free_id, heap_used = used_id, heap_size = bsize_i, heap_prev = prev_i, heap_next = next_i;   
+  let ptrs = vec(128);
+  for i = 0 to 127 do
+    ptrs ! i := 0;
+  out("x to exit.\n");
+  out("?N to examine any chunk. N is its real address, which is the value returned by newvec minus two.\n");
+  out("vf to freevec the variable named v. Variable names are single lower-case letters.\n");
+  out("v? to see the value of variable v.\n");
+  out("vnN to newvec(N), N is number of words wanted, v is the variable in which the returned value will be stored,\n");
+  out("                  the response is v = A, where A is the pointer returned by newvec.\n\n");
+  printfrees();
+  while true do
+  { let v, c, n, p, realp;
+    outs("\n> ");
+    v := inch();
+    test v = '?' then
+    { realp := inno();
+      n := realp ! heap_free_or_used;
+      out("%d: %8x", realp, n); 
+      test n = heap_free then
+        out(", FREE, size = %d, next = %d, prev = %d, ..., %d\n", realp ! heap_size, realp ! heap_next, realp ! heap_prev,
+                                                                  realp ! (realp ! heap_size - 1))
+      else test n = heap_used then
+        out(", USED, size = %d, ..., %d\n", realp ! heap_size, realp ! (realp ! heap_size - 1))
+      else
+        outs("\nThat is not a valid code for the beginning of a chunk\n");
+      loop }
+    else if v = 'x' then
+      finish;
+    c := inch();
+    test c = '?' then
+    { inch();
+      realp := ptrs ! v - 2;
+      if realp = -2 then
+      { outs("unassigned\n");
+        loop }
+      n := realp ! heap_free_or_used;
+      out("%d: %8x", realp, n);
+      test n = heap_free then
+        out(", FREE, size = %d, next = %d, prev = %d, ..., %d\n", realp ! heap_size, realp ! heap_next, realp ! heap_prev,
+                                                                  realp ! (realp ! heap_size - 1))
+      else test n = heap_used then
+        out(", USED, size = %d, ..., %d\n", realp ! heap_size, realp ! (realp ! heap_size - 1))
+      else
+        outs("\nThat is not a valid code for the beginning of a chunk\n");
+      loop }
+    else test c = 'n' then
+    { n := inno();
+      p := newvec(n);
+      ptrs ! v := p;
+      out("%c = %d\n", v, p);
+      realp := p - 2;
+      out("%d: %8x %d ... %d\n", realp, realp ! heap_free_or_used, realp ! heap_size, realp ! (realp ! heap_size - 1)) }
+    else test c = 'f' then
+    { c := inch();
+      p := ptrs ! v;
+      if p = 0 then
+      { outs("%c not yet defined\n", v);
+        loop }
+      realp := p - 2;
+      if realp ! heap_free_or_used <> heap_used then
+      { out("That is not a used chunk\n");
+        loop }
+      freevec(p) } 
+    else
+    { outs("???\n");
+      if c <> '\n' then
+      { c := inch() repeatuntil c = '\n' }
+      loop }
+    printfrees() } }
+
+
+

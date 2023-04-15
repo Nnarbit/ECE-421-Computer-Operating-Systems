@@ -1,0 +1,32 @@
+Enter the strings and deletions:
+hello
+this
+program
+works
+ALL
+(link@0xFFFC0)(string@0xFFFC0)works
+(link@0xFFFD0)(string@0xFFFD0)program
+(link@0xFFFE0)(string@0xFFFE0)this
+(link@0xFFFF0)(string@0xFFFF0)hello
+properly
+DELETE
+Enter word to delete
+program
+dog
+ALL
+(link@0xFFFD0)(string@0xFFFD0)dog
+(link@0xFFFB0)(string@0xFFFB0)properly
+(link@0xFFFC0)(string@0xFFFC0)works
+(link@0xFFFE0)(string@0xFFFE0)this
+(link@0xFFFF0)(string@0xFFFF0)hello
+cat
+DELETE
+Enter word to delete
+dog
+ALL
+(link@0xFFFA0)(string@0xFFFA0)cat
+(link@0xFFFB0)(string@0xFFFB0)properly
+(link@0xFFFC0)(string@0xFFFC0)works
+(link@0xFFFE0)(string@0xFFFE0)this
+(link@0xFFFF0)(string@0xFFFF0)hello
+END

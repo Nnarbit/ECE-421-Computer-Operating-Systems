@@ -1,0 +1,28 @@
+
+This is really so that you can be confident that you can 
+make the system work before you have to do something more
+serious.
+
+The Collatz sequence starting from any integer N>0 is:
+
+  If N is even,
+    divide it by two,
+  but if it is odd,
+    multiply it by three and add one
+
+Keep on doing that until N is reduced to 1.
+
+For example, starting from 196 we get
+
+  196, 98, 49, 148, 74, 37, 112, 56, 28, 14, 7, 22, 11, 34,
+  17, 52, 26, 13, 40, 20, 10, 5, 16, 8, 4, 2, 1
+
+Your assignment -
+
+  In BCPL, write a program that repeatedly
+    asks the user to enter a value for N,
+    prints the collatz sequence starting from N,
+    prints the length of that sequence.
+
+Submit your code and a few sample runs.
+

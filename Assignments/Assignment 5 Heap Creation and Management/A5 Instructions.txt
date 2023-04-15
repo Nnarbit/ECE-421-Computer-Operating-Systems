@@ -1,0 +1,68 @@
+
+Write a BCPL library that provides a proper fully functional implementation
+of newvec, freevec, and init. Make sure it works with your assigment 4
+program.
+
+Remember that you need to test things throughly. Do runs with strings of all 
+sorts of lengths, with lots of additions and deletions. Change your linked
+list printer show that it shows the addresses of everything (each link and
+each string), so you can demonstrate that feevec is working properly,
+recycling memory and combining neighbouring free chunks.
+
+Start simply and build up to the final result. First just make freevec keep
+a linked list of free chunks, no combining, just recycling. Then move on to
+multiple free lists for different sizes. Then move on the the final version.
+
+You must test everything fully. It is required that your new functions work 
+properly with the linked list program, but that may not provide a very
+convenient way of doing a full test. Feel free to use the "Testing a heap
+allocation system" code from class 13.
+
+And something I forgot to mention in class: We know that the best way to get
+a heap of the biggest possible size is to call init like this: 
+    init(!0x101, !0x100 - !0x101);
+which is a bit confusing to a new programmer. Why not just get rid of the
+parameters, so the programmer can just type init();, and make your version
+of init always use the values !0x101 and !0x100 - !0x101, no need for
+parameters at all. Even better, give your heap.b library program a pre_start
+function so that everything is automatic, the programmer doesn't have to
+know or do anything about init.
+    let pre_start() be
+    { init := my_init;
+      newvec := my_newvec;
+      freevec := my_freevec;
+      init() }
+
+Example run, but not good enough.
+
+$ run hw4
+Enter the strings and deletions:
+> hello
+> this
+> program
+> works
+> ALL
+(link@434)(string@42C)works 
+(link@424)(string@41C)program 
+(link@414)(string@40C)this
+(link@404)(string@3FC)hello
+> properly
+> DELETE program
+> dog
+> ALL
+(link@41C)(string@424)dog 
+(link@444)(string@43C)properly
+(link@434)(string@42C)works 
+(link@414)(string@40C)this
+(link@404)(string@3FC)hello
+> cat
+> DELETE dog
+> ALL
+(link@454)(string@44C)cat 
+(link@444)(string@43C)properly
+(link@434)(string@42C)works 
+(link@414)(string@40C)this
+(link@404)(string@3FC)hello
+> END
+$
+

@@ -1,0 +1,66 @@
+
+A level-1 index filesystem.
+
+For this assignment, you do not need to have absolutely everything
+working properly. I want to check on your progress and give feedback
+before it is too late. But this must be a serious attempt showing
+real progress, not just something hacked together in a few minutes.
+
+Implement a level-1 index filesystem.
+You can make any use you want of anything that I have posted on the
+rabbit web page. Material from other sources is of course not allowed.
+
+You must of course create a header block for every file, and you should
+store some meta-data in there. At least store the creation date in there,
+along with two bits of information: is the file protected against deletion,
+and (for the future) does it contain executable code? (These correspond to
+unix's w and x bits in the output from ls -l). And leave some more space
+for things you might need in the future. So of course you should remove
+the creation time information from directory entries. Rather than reduce 
+the size of an entry to 3 words, I would suggest increasing the maximum
+filename length to 12 characters. You will also need to add a command
+for changing a file's protection. You will also need to keep track of
+which blocks are free and which are in use effectively.
+
+Integrate it with the better-designed input/output library from class 4.
+
+You will need to increase the size of iosb structure to include a pointer
+to the in-memory copy of the header block and its block number (so that you
+can save it to disc when the file is closed if you have modified it), and
+to record your position (block number) within the file. If you want to add
+more than that, that is perfectly OK.
+
+In order to test this properly, you will need to be able to provide large
+amounts of text. Rabbit has a public-domain text archive, linked to from
+the home page, for exactly this sort of thing.
+
+You will need to add at least two new commands to the program: one for
+copying data from a tape to create a new disc file, and one to copy one
+of your files out to a tape so that you can check it properly. For both
+of these, the command will need to ask for the anme of the disc file and
+the name of the real unix file to mount as a tape.
+
+Just to clarify some points:
+  It is the "A better-designed input/output library" link from class 4
+that you should be adding disc abilities to. That particular program did
+not take commands from the user, but to make your work testable and
+demonstratable, you will probably want it to be based on user commands.
+  The "here it is" link from class 6 will also be useful. Nearly all of
+it can be adapted to be useful for this assignment. Some parts will be
+good completely modified, and some parts will need bigger changes. The
+read and write functions become totally inappropriate. They both read
+or write the file's whole content as a single string all at once. That
+is no good. It should be handled the class 4 way.
+  Errors: In class 6, errors were (mostly) detected and reported, but 
+then ignored. Things will be a lot better if you also return an error
+code that the calling function can see. find.free.block doesn't even
+notice if there are no free blocks left. In class 4, errors were reported
+but always led to a finish statement. That is not reasonable any more.
+A file system should not completely crash when one small thing goes wrong.
+Go for error codes again.
+  Free blocks: Don't try to do everything at once. It is perfectly OK
+to stick with the find.free.block from class 6 (with error returns) while
+you are making files work. Once that is done, that is the time to deal
+with proper free block management. A totally new find.free.block and
+a make.block.free to go with it.
+

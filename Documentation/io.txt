@@ -1,0 +1,398 @@
+
+export { outch, outno, outhex, outbin, outf, outs, out, inch, inno,
+         numbargs, lhs, thiscall, returnto, init, newvec, freevec, sleep,
+         seconds, datetime, datetime2, devctl, devctlv, strlen, random,
+         set_kb_buffer,
+         DC_DISC_CHECK, DC_DISC_READ, DC_DISC_WRITE, DC_TAPE_CHECK, 
+         DC_TAPE_READ, DC_TAPE_WRITE, DC_TAPE_REWIND, DC_TAPE_LOAD, 
+         DC_TAPE_UNLOAD, DC_TERMINC, DC_TERMINW, DC_TERMOUTC, 
+         DC_TERMOUTW, DC_SECONDS, DC_USECONDS, DC_DATETIME }
+
+manifest
+{ DC_DISC_CHECK = 0,
+  DC_DISC_READ = 1,
+  DC_DISC_WRITE = 2,
+  DC_TAPE_CHECK = 3,
+  DC_TAPE_READ = 4,
+  DC_TAPE_WRITE = 5,
+  DC_TAPE_REWIND = 6,
+  DC_TAPE_LOAD = 7,
+  DC_TAPE_UNLOAD = 8,
+  DC_TERMINC = 9,
+  DC_TERMINW = 10,
+  DC_TERMOUTC = 11,
+  DC_TERMOUTW = 12,
+  DC_SECONDS = 13,
+  DC_USECONDS = 14,
+  DC_DATETIME = 15,
+  DC_LAST_CODE = 15 }
+
+let numbargs() be
+{ assembly
+  { load  R1, [FP]
+    load  R1, [R1+2]
+    div   R1, 2 } }
+
+let lhs() be
+{ assembly
+  { load  R1, [FP]
+    load  R1, [R1+2]
+    and   R1, 1
+    rsub  R1, 0 } }
+
+let thiscall() be
+{ assembly { load  R1, [FP] } }
+
+let returnto(frame, value) be
+{ assembly
+  { load  R2, FP
+    load  R4, [<frame>]
+    load  R1, [<value>]
+    load  SP, R2
+    load  R2, [R2]
+    comp  R2, R4
+    jcond neq, PC-4
+    load  R5, [SP+1]
+    add   SP, 2
+    load  FP, R2
+    jump  R5 } }
+
+let outch(c) be
+{ assembly { type [<c>] } }
+
+let outno(n) be
+{ if n<0 then
+  { n := -n;
+    outch('-') }
+  if n>9 then outno(n/10);
+  outch('0' + n rem 10) }
+
+let outnow(n, w, f) be
+{ let b = vec 12, sgn = false, sz = 0;
+  if n<0 then
+  { sgn := true;
+    n := - n }
+  { b ! sz := '0' + n rem 10;
+    sz +:= 1;
+    n /:= 10 } repeatuntil n = 0;
+  if sgn then
+  { if f = '0' then
+    { outch('-');
+      sgn := 0 }
+    w -:= 1 }
+  for i = sz+1 to w do
+    outch(f);
+  if sgn then
+    outch('-');
+  while sz > 0 do
+  { sz -:= 1;
+    outch(b ! sz) } }
+
+let bitsin(n) be
+{ for i = 32 to 1 by -1 do
+  { n := n rotl 1;
+    if n bitand 1 then resultis i }
+  resultis 0 }
+
+let outhex(n) be
+{ let outhex1(n) be
+  { test n<10 then
+      outch('0' + n)
+    or
+      outch('A' + n - 10) }
+  let s = 28, pr = false;
+  while s >= 0 do
+  { let d = n >> s bitand 15;
+    if d <> 0 then pr := true;
+    if pr then outhex1(d);
+    s := s - 4 }
+  if not pr then outch('0') }
+
+let outhexw(n, wide, fill) be
+{ let pad = wide - 1 - (bitsin(n) - 1)/4;
+  while pad > 0 do
+  { outch(fill);
+    pad -:= 1 }
+  outhex(n) }
+
+let outbin(n) be
+{ let c = 0, pr = false, d;
+  while c < 32 do
+  { n := n rotl 1;
+    d := n bitand 1;
+    if d <> 0 then pr := true;
+    if pr then outch('0' + d);
+    c := c + 1 }
+  if not pr then outch('0') }
+
+let outbinw(n, wide, fill) be
+{ let pad = wide - bitsin(n);
+  if n = 0 then pad := wide - 1;
+  while pad > 0 do
+  { outch(fill);
+    pad -:= 1 }
+  outbin(n) }
+
+let outf(n) be
+{ let e = 0, c = 0, mil = 1000000.0;
+  test n #< 0.0 then
+  { outch('-');
+    n := #- n }
+  or
+    outch('+');
+  while n #>= 10.0 do
+  { e := e + 1;
+    n := n #/ 10.0 }
+  unless n #= 0.0 do
+    while n #< 1.0 do
+    { e := e - 1;
+      n := n #* 10.0 }
+  assembly
+  { load  r1, [<n>]
+    fmul  r1, [<mil>]
+    frnd  r1, r1
+    fdiv  r1, [<mil>]
+    store r1, [<n>] }
+  outch('0' + fix n);
+  outch('.');
+  while c < 6 do
+  { n := n #- float fix n;
+    n := n #* 10.0;
+    outch('0' + fix n);
+    c := c + 1 }
+  outch('e');
+  test e < 0 then
+  { outch('-');
+    e := - e }
+  or
+    outch('+');
+  test e >= 100 then
+    outno(e)
+  or
+  { outch('0' + e / 10);
+    outch('0' + e rem 10) } }
+
+let outs(s, w) be
+{ let len = 0, minw = w, maxw = w;
+  if s = nil then return;
+  if numbargs() = 1 \/ w = 0 then
+  { minw := 0;
+    maxw := 999999 }
+  while len < maxw do
+  { let c = byte len of s;
+    if c = 0 then break;
+    outch(c);
+    len +:= 1 }
+  while len < minw do
+  { outch(' ');
+    len +:= 1 } }
+
+let strlen(s) be
+{ let i = 0;
+  until byte i of s = 0 do
+    i +:= 1;
+  resultis i }
+
+let out(format) be
+{ let i = 0, an = 1, na = numbargs(), arg = @format;
+  if format = nil then return;
+  while true do
+  { let c = byte i of format;
+    if c = 0 then break;
+    test c = '%' then
+    { let c = byte i+1 of format, av = 0, wide = 0, fill = ' ';
+      if c = 0 then
+      { outch('%');
+        break }
+      i +:= 1;
+      if c = '0' then
+      { fill := '0';
+        i +:= 1; 
+        c := byte i of format; }
+      while c >= '0' /\ c <= '9' do
+      { wide := wide * 10 + c - '0';
+        i +:= 1; 
+        c := byte i of format; }
+      if an <= na then av := arg!an;
+      an +:= 1;
+      test c = 'd' then
+        test wide > 0 then
+          outnow(av, wide, fill)
+        or
+          outno(av)
+      or test c = 'f' then
+        outf(av)
+      or test c = 's' then
+        outs(av, wide)
+      or test c = 'c' then
+        outch(av)
+      or test c = 'x' then
+        test wide > 0 then
+          outhexw(av, wide, fill)
+        or
+          outhex(av)
+      or test c = 'b' then
+        test wide > 0 then
+          outbinw(av, wide, fill)
+        or
+          outbin(av)
+      or
+      { outch('%');
+        outch(c) } }
+    or
+      outch(c);
+    i := i + 1 } }
+
+let inch_unbuff() be
+{ assembly
+  { inch  R1
+    jpos  R1, PC+2
+    pause
+    jump  PC-4 } }
+
+static { buffer = vec 301, buff_num = 0, buff_ptr = 0, buff_max = 1200 }
+
+let set_kb_buffer(v, size) be
+{ if size<2 then return;
+  buffer := v;
+  buff_num := 0;
+  buff_ptr := 0;
+  buff_max := (size-1)*4 }
+
+let inch() be
+{ if buff_num > buff_ptr then
+  { let c = byte buff_ptr of buffer;
+    buff_ptr +:= 1;
+    resultis c }
+  buff_ptr := 1;
+  buff_num := 0;
+  while true do
+  { let c = inch_unbuff();
+    if c = 8 then
+    { if buff_num > 0 then
+      { buff_num -:= 1;
+        out("%c %c", 8, 8) }
+      loop }
+    outch(c);
+    byte buff_num of buffer := c;
+    unless buff_num > buff_max do buff_num +:= 1;
+    if c = '\n' then resultis byte 0 of buffer } }
+
+let inno() be
+{ let n = 0, c, s = 0;
+  c := inch() repeatuntil c>='0' /\ c<='9' \/ c='-' \/ c='+';
+  test c='-' then 
+  { s := 1;
+    c := inch() }
+  or if c='+' then
+    c := inch();
+  while c>='0' /\ c<='9' do
+  { n := n * 10 + c - '0';
+    c := inch() }
+  if s then
+    resultis -n;
+  resultis n }
+
+let devctl(op, unit, p1, p2, p3) be
+{ let p = vec(5), r = 0;
+  p ! 0 := op;
+  p ! 1 := unit;
+  p ! 2 := p1;
+  p ! 3 := p2;
+  p ! 4 := p3;
+  assembly
+  { load  R2, [<p>]
+    peri  R1, R2
+    store R1, [<r>] }
+  resultis r }
+
+let devctlv(p) be
+{ let r = 0;
+  assembly
+  { load  R2, [<p>]
+    peri  R1, R2
+    store R1, [<r>] }
+  resultis r }
+
+let seconds() be
+{ let n = 0;
+  assembly
+  { load  R1, $SECONDS
+    store R1, [<n>]
+    peri  R1, <n> } }
+
+let sleep(n) be
+{ let endtime = seconds()+n;
+  until seconds() >= endtime do
+    assembly { pause } }
+
+let datetime(t, v) be
+{ let p = vec 9;
+  p ! 1 := t;
+  assembly
+  { load  R1, $DATETIME
+    load  R2, [<p>]
+    store R1, [R2]
+    peri  R1, R2 }
+  for i = 2 to 8 do
+    v ! (i-2) := p ! i }
+
+let datetime2(v) be
+{ let t = vec 3, p = vec 9, x;
+  assembly
+  { load  R1, $USECONDS
+    load  R2, [<t>]
+    store R1, [R2]
+    peri  R1, R2 }
+  p ! 1 := t ! 1;
+  assembly
+  { load  R1, $DATETIME
+    load  R2, [<p>]
+    store R1, [R2]
+    peri  R1, R2 }
+  x := 0;
+  (selector 13 : 19) from x := p ! 2;
+  (selector 4 : 15) from x := p ! 3;
+  (selector 5 : 10) from x := p ! 4;
+  (selector 3 : 7) from x := p ! 5;
+  v ! 0 := x;
+  x := 0;
+  (selector 5 : 27) from x := p ! 6;
+  (selector 6 : 21) from x := p ! 7;
+  (selector 6 : 15) from x := p ! 8;
+  (selector 10 : 5) from x := t ! 2;
+  v ! 1 := x; }
+
+let random(max) be
+{ static { seed = 872364821 };
+  if max < 0 then 
+  { seed := seconds();
+    return }
+  seed := seed * 628191 + 361;
+  resultis (seed bitand 0x7FFFFFFF) rem (max + 1) }
+
+static { vecsize = 0, vecused = 0, vecspace }
+
+let lamest_newvec(n) be
+{ let r = vecspace + vecused;
+  if vecused + n > vecsize then
+  { outs("\nnewvec: insufficient free memory\n");
+    finish }
+  vecused +:= n;
+  resultis r }
+
+let lamest_freevec(v) be
+{ }
+
+static { newvec = lamest_newvec,
+         freevec = lamest_freevec }
+
+let lamest_init(v, s) be
+{ newvec := lamest_newvec;
+  freevec := lamest_freevec;
+  vecsize := s;
+  vecspace := v;
+  vecused := 0 }
+
+static { init = lamest_init }
+

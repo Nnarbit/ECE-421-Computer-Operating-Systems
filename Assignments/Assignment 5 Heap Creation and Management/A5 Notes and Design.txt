@@ -1,0 +1,94 @@
+
+2/23/23 recording:
+
+heap allocation
+manages memory the programs can use
+mainly used with freevec and newvec 
+
+the way we can store and manage heap allocation is through a linked list
+chunk = 1 lump of the heap
+
+when creating using newvec
+IE: newvec(19):  find 20 words of heap -> P 
+                 p ! 0 = 20
+                 return p + 1 // would point to the chunk of memory that the user is allowed to use
+   do this so that the system always knows the size of the chunk that was pointed to.
+   therefore, actual size of chunk = P ! 0
+   and the size given to user = (P ! 0) - 1
+
+be careful almost all programming languages use someting like this and if its not protected then heap can get overwriten
+for example if using a negative index in an array it could overwrite the size of that heap chunk.
+some programs like java or javascript protect it but others like C or C++ dont, be weary of it.
+
+when creating the linked list of heap, initially, everything will be free.
+As such you also need to follow the pattern and store the total size of the heap in position 0
+therefore first entry of linked list:
+          pos 0 = total size of chunk
+          IE if heap has size of 6000 words
+          pos 0 = 6000
+          retun pos 1 with total size of 5999 if newvec called // or something like that
+
+HOWEVER
+MUST ADD 1 to NEWVEC since we need to keep track where the next free block is for freevec
+AND MAKE SURE THE RESULT IS >=2 (1 for totSize and 1 for nextFree)
+if it isn't just add another 1 to it
+
+so design would look somthing like:
+let newvec(sizeRequested) be {
+    let actualSize = sizeRequested + 2; // one to store actualSize and one to store nextFree
+    let nextFree; //ptr to next free
+
+    if sizeRequested = 0 then {
+        print newvec error
+    }
+
+}
+
+let freevec() be{
+
+}
+
+
+when allocating space for newvec
+keep track of previous free chunk
+if free block is found that is >= size needed
+   enter chunk
+   if size needed < size of free chunk - 2 (- 2 for pointer and totsize)
+      create chunk to be given to user at the end of this free block
+        this way we dont have to worry about changing the pointer at the beginning of this given free block
+      when that chunk is created, totalSizeOfFreeChunk = totalSizeOfFreeChunk - sizeOfAllocatedChunk
+      however if the resulting size of the free chunk used is <=2 then just give the rest to the one you want to sizeOfAllocatedChunk
+        if this happens then you have to change the pointer that was pointing to this free chunk and change its pointer to what
+        this free chunk was pointing to 
+        same thing if size needed = size of the free chunk -2 and whatnot
+
+
+store a free list
+freelist[n] says where the first free chunk of size 4n + 8 is  (minimum chunk size of 8)
+
+within a free chunk record:
+size of chunk
+special pattern that shows its free
+pointer to next free chunk of same size
+pointer to previous free chunk of same size
+...// empty/unused data
+size of chunk
+
+within a used chunk record:
+size of chunk
+special pattern that shows its used
+... //used data
+size of chunk
+
+absolute minimum size of chunk must be 5
+
+chunk layout:
+_____________________________________________
+size of chunk (words)
+free/used     (free = 98989898, used = 12121212)
+next          (addr of next free chunk)
+previous      (addr of previous free chunk)
+ - data would go here
+size of chunk (words)
+_____________________________________________
+best if you insist that each chunk is a multiple of 8

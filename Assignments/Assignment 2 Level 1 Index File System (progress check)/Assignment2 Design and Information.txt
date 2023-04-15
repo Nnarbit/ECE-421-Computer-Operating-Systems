@@ -1,0 +1,181 @@
+Assignment 2
+
+Notes: Class 6: intro to indexed file systems (explains level 1 as well)
+      Class 4: intro to iosb
+      Class 9: expands on iosb
+      Class 10: framework for file system
+
+The system is set up by default to have one drive with 6000 blocks
+a block is 512 bytes (128 words)
+a directory is just a special kind of file, a block can be dedicated as a directory (such as rootdir)
+
+better system than the single block files:
+
+globals: 
+superblock = vec(128);
+rootdir = vec(128);
+stackView = vec(256);
+
+Formatting: 
+
+- when formatting a disc, every block will first be cleared out by initializing all of its memory to 0
+- superblock will be store in block 0
+- free list
+  - this will be a list of free blocks stored in a stack
+    - since there is no actual stack we will implement one by keeping pointers for the top and end of stack in the superblock
+  - stack should be capapble of storing all blocks on disc, blocks that dont need to be tracked will not be stored within it
+  - the number of blocks needed to contain all the block numbers of the disc = (discSize + 127) / 128
+    - we'll call this value stackContainerSize 
+    - stackContainerSize = (discSize + 127) / 128
+  - on disc, the free list will lie in between superblock and the root directory
+- root directory will be store right after the free list at position: stackContainerSize + 1
+- stackContainer block range is from blocks 1 to stackContainerSize
+- blocks 0, 1 through stackContainerSize, and stackContainerSize + 1 will allways be in use
+- blocks from stackContainerSize + 2 to discSize - 1 will be free 
+  - numFreeBlocks = (discSize - (stackContainerSize + 2) in total)
+
+superblock: // will always be stored in block 0
+*********************************************************************************************************************************
+ 0 - stores the blocknum that holds rootdir      | = stackContainerSize + 1
+ 1 - stores the blocknum that topOfStack is in   | = topOfStack / 128 + 1
+ 2 - stores the blocknum that endOfStack is in   | = endOfStack / 128 + 1 
+ 3 - stores the total number of free blocks      | = discSize - stackContainerSize - 2 
+ 4 - stores the position of topOfStack           | relative to stackContainer (range: from 0 to endOfStack) 
+ 5 - stores the position of endOfStack           | relative to stackContainer. Always equals numberOfFreeBlocks - 1;
+ 6 - stores the position of topOfStack in window | relative to window (range: 0 to 255) (window is two blocks wide)
+*********************************************************************************************************************************
+
+mounting:
+copy superblock, rootdir, and stackView from disc into their corresponding global vectors
+
+window logic:
+- position of topOfStack in window (block) = if (topBlock rem 2 = 1 /\ topBlock + 1 <= stackContainerSize) display topBlock and topBlock + 1
+                                      else display topBlock
+- in simpler terms: always display topBlock and if topBlock + 1 <= stackContainerSize then display topBlock + 1
+
+enter: (creating an entry to a directory AKA creating a new file)
+- look through free list and find first free entry
+- if no free entry return an error 
+- otherwise update that entry to be taken
+  - move topOfStack to topOfStack + 1
+  - set limit so that topOfStack does not move past the end
+
+when freeing an entry: 
+  - move topOfStack to topOfStack - 1 and overwrite the value at top - 1 with the entry you are freeing 
+    - works since the file header and directories will keep track of what blocks hold the 
+      file's data
+  - set limit so that i does not move past the beginning of the stackContainer
+  
+header block design:
+  -represents a whole file
+    -112 bytes (arbitrary) to store metadata
+      -leaves 400 bytes to store block numbers (100 of them) (for files)
+
+  for the metadata:
+  - type (1 word): file or directory (special kind of file)
+    - how a pointer in the data section is interpreted is determined by the 
+      header block type
+  - name of file/directory (3 words) (11 max characters, 1 for null character)
+  - file/directory creation time (2 words)
+  - last modified time (2 words)
+  - last accessed time (2 words)
+  - protections (currently dont know how to implement)
+  - level (for multi-level file indeces, not neccessary to implement at this time)
+  for actual data:
+    - total space available (for now): 512 -33 = 479 bytes
+    - each pointer is one word (4 bytes) (can represent blocks 0 to 2^32 - 1)
+    - total pointers that can be created: 479 / 4 = 119 with 3 bytes left over
+    file data:
+      - pointers to blocks (NOT header blocks) that contain file data 
+      - pointers to pointer blocks can be added later (mulit level file indeces)
+    directory data:
+      Design 1:
+        - only store pointers to header blocks
+        Advantages:
+          - allows for more files to be stored per directory
+          - results in some extra storage space
+          - directories and files would have the same metadata
+            - make things less complex
+        Disadvantages:
+          - Lets say a user would like to compare the names of the files in the directory. 
+            The system would have to search through every pointer in the directory and
+            load each header block that it points to in order to read that entry's data.
+          - I believe this would slow down the file system considerably
+            - why would it slow it down?
+            - isn't it reading/writing from disc managed by devctl
+            - how long does devctl take?
+      Alternatively:
+      Design 2:
+        - store pointers to header blocks
+        - store metadata of files as well
+        - would need 32 bytes per file entry to store 
+          - 479 / 32 = only 14 entries per directory
+
+
+Header Block of an Entry:
+- isFileOrDir (4 bytes), File = 0, Dir = 1
+- date created (8 bytes)
+- date modified (8 bytes)
+- date accessed (8 bytes)
+- permissions (4 bytes) 
+  - (001xb) execute
+  - (010xb) write
+  - (100xb) read
+- if File:
+  - pointers to data blocks
+  - pointers to pointer blocks can be added later (mulit level file indeces)
+- if Directory:
+  - name of file/directory (12 bytes) // 12 characters max
+  - pointer to header block (4 bytes)
+  Note: each directory, except for rootdir, will have itself and its parent direcotry stored as . and ..
+      : for now print an error if directory gets full, can expand on this later
+- for each entry:
+  - is there space in given directory?
+  - is there space to create header block? // Note: might make header block that is unable to point to any data, since no space left in disc
+    - find next available block
+  
+Note: to free a block zero it out in order for lookup() to work properly
+      however keep in mind there will be no possibility for data recovery from a freed block
+
+iosb design:
+
+  basic functions necessary:
+  open
+  -tape for reading
+  -tape for writing
+  -disc for reading
+  -disc for writing
+  -tty for reading
+   -readch
+  -tty for writing
+   -writech
+
+  close
+   -every type form open
+   -like close(f)
+
+iosb is a vector
+-stores functions:
+  -readch
+  -writech
+  -close(f)
+
+can thnk of it like a hadrware instruction 
+where the iosb contains info in a similar format to
+opcode, register, modes, etc.
+
+iosb needs to be extended to include:
+  -when dealing with tapes and buffers, need to create
+   a new buffer for each new file open
+  -also when you open a file, allocate a block of memory to 
+   store the header block 
+  -pos inside of buffer (currently viewing this pos)
+  -size of buffer (how much is currently stored in said buffer)
+    -pos and size will help fill the buffer with the blocks of data
+     you want to read, can be used for tapes or discs
+    -keep in mind you have to create pos and size for every buffer
+  -length left
+    - this should be obtained from the header block of the file
+    - shows how much data is left from in the file
+    - once it is less than 512 bytes set the size of the buffer to
+      only accept what is left

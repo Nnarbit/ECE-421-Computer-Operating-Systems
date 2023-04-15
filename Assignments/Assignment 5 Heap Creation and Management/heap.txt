@@ -1,0 +1,857 @@
+import "io"
+
+/*
+heapSizeMax is normally around 1.05 million, 
+let max n = 999 (arbitrary)
+freelist[n] = 8n + 8
+where 8n + 8 is size of chunk stored
+freelist[999] = 8000
+any chunk larger than 8000 will be stored at freelist[999];
+*/
+
+manifest {
+    freelistSizeMax = 1000, minChunkSize = 8,
+    bsize_i = -1, usedOrFree_i = 0, next_i = 1, prev_i = 2, // for chunk addressing, bsize = size at beginning of chunk
+    free_id = 98989898, used_id = 12121212
+} 
+
+static {freelist = vec(freelistSizeMax), heap, heapSizeMax = 0, heapChunk} 
+
+let is_in_heap(addr) be { // if addr is in the heap addressing range
+    if addr >= heap /\ addr <= heap + heapSizeMax - 1 then {
+        resultis 1;
+    }
+    resultis 0;
+}
+
+let is_in_range(caddr) be { // if caddr is in valid chunk addressing range
+    //chunk addresses are only valid between heapChunk and heapChunk heapSizeMax - 2 + (2 - minChunkSize)
+    if caddr >= heapChunk /\ caddr <= (heapChunk + heapSizeMax - 2 + (2 - minChunkSize)) then { // -2 since heapChunk starts at heap + 1
+        resultis 1;
+    }
+    resultis 0;
+}
+
+let test.is_in_range() be {
+    out("heap = %d, heapSizeMax = %d, heap end = %d\n", heap, heapSizeMax, heap + heapSizeMax - 1);
+    for i = heap - 10 to  heap + heapSizemax + 9 do {
+        if i = heap then {
+            out("caddr = %d, is_in_range = %d  <-- heap starts here\n", i, is_in_range(i));
+            loop;
+        }
+        if i = heap + 1 then {
+            out("caddr = %d, is_in_range = %d  <-- first valid caddr\n", i, is_in_range(i));
+            loop;
+        }
+        if i = heap + heapSizeMax - 1 then {
+            out("caddr = %d, is_in_range = %d  <-- heap ends here\n", i, is_in_range(i));
+            loop;
+        }
+        if i = heap + heapSizeMax - 1 + (2 - minChunkSize) then {
+            out("caddr = %d, is_in_range = %d  <-- last valid caddr\n", i, is_in_range(i));
+            loop;
+        }
+        if is_in_range(i) = 0 then {
+            out("caddr = %d, is_in_range = %d\n", i, is_in_range(i));
+        }
+    }
+}
+
+let is_free(caddr) be { // if caddr is set to free
+    test is_in_range(caddr) then {
+        if (caddr ! usedOrFree_i) = free_id then {
+            resultis 1;
+        }
+        resultis 0;
+    }
+    else {
+        resultis 0;
+    }
+}
+
+let is_used(caddr) be { // if caddr is set to used
+    test is_in_range(caddr) then {
+        if (caddr ! usedOrFree_i) = used_id then {
+            resultis 1;
+        }
+        resultis 0;
+    }
+    else {
+        resultis 0;
+    }
+}
+
+let is_valid(caddr) be { // if caddr is a valid chunk address
+    if not is_in_range(caddr) \/ (not is_free(caddr) /\ not is_used(caddr)) then {
+        resultis 0;
+    }
+    resultis 1;
+}
+
+let left_of(caddr) be { // returns caddr of chunk to the left of given chunk, -1 otherwise
+    test is_valid(caddr) /\ is_in_heap(caddr - 2) then {
+        if is_valid(caddr -(caddr ! -2)) then {
+            resultis (caddr -(caddr ! -2));
+        }
+        resultis -1;
+    }
+    else {
+        resultis -1;
+    }
+}
+
+let right_of(caddr) be { // returns caddr of chunk to the right of given chunk, -1 otherwise
+    test is_valid(caddr) /\ is_in_heap(caddr + bsize_i) then {
+        if is_valid(caddr + (caddr ! bsize_i)) then {
+            resultis (caddr + (caddr ! bsize_i));
+        }
+        resultis -1;
+    }
+    else {
+        resultis -1;
+    }
+}
+
+let is_left_free(caddr) be {
+    let r = left_of(caddr);
+    if r = -1 then {
+        resultis 0;
+    }
+    if is_free(r) then {
+        resultis 1;
+    }
+    resultis 0;
+}
+
+let is_right_free(caddr) be {
+    let r = right_of(caddr);
+    if r = -1 then {
+        resultis 0;
+    }
+    if is_free(r) then {
+        resultis 1;
+    }
+    resultis 0;
+}
+
+let are_adjacent(caddr1, caddr2) be {
+    if left_of(caddr1) = caddr2 \/ right_of(caddr1) = caddr2 then {
+        resultis 1;
+    }
+    resultis 0;
+}
+
+let clear_chunk_data(caddr) be {
+    if is_free(caddr) then {
+        for i = 3 to (caddr ! bsize_i) - 3 do {
+            caddr ! i := nil;
+        }
+    }
+    if is_used(caddr) then {
+        for i = 1 to (caddr ! bsize_i) - 3 do {
+            caddr ! i := nil;
+        }
+    }
+}
+
+let write_to_used_chunk(caddr, amount, data) be { //only for testing
+    // relative to usesdOrFree_i = 0
+    let usedDataStart_i = 1;
+    if not is_valid(caddr) then {
+        out("invalid caddr (write_to_used_chunk)\n");
+        return;
+    }
+    if is_free(caddr) then {
+        out("only use on used chunks (write_to_used_chunk)\n");
+        return;
+    }
+    
+    for i = usedDataStart_i to amount + usedDataStart_i - 1 do {
+        if i = caddr + (caddr ! bsize_i) - 2 then {
+            break;
+        }
+        caddr ! i := data;
+    }
+}
+
+let show_chunk_data(caddr) be {
+    // relative to usesdOrFree_i = 0
+    let usedDataStart_i = 1;
+    let freeDataStart_i = 3;
+    let dataEnd_i = (caddr ! bsize_i) - 3;
+
+    if not is_valid(caddr) then {
+        out("invalid caddr (show_chunk_data)\n");
+        return;
+    }
+
+    if is_free(caddr) then {
+        for i = freeDataStart_i to dataEnd_i do {
+            if i = freeDataStart_i then {
+                out("(0x%x) 0x%x 0d%d [%s] <- data start", caddr + i, caddr ! i, caddr ! i, caddr ! i);
+                test caddr ! i = nil then {
+                    out(" <- nil\n");
+                }
+                else {
+                    out("\n");
+                }
+                loop;
+            }
+            if i = dataEnd_i then {
+                out("(0x%x) 0x%x 0d%d [%s] <- data end", caddr + i, caddr ! i, caddr ! i, caddr ! i);
+                test caddr ! i = nil then {
+                    out(" <- nil\n");
+                }
+                else {
+                    out("\n");
+                }
+                loop;
+            }
+            out("(0x%x) 0x%x 0d%d [%s]", caddr + i, caddr ! i, caddr ! i, caddr ! i);
+            test caddr ! i = nil then {
+                out(" <- nil\n");
+            }
+            else {
+                out("\n");
+            }
+        }
+    }
+    if is_used(caddr) then {
+        for i = usedDataStart_i to dataEnd_i do {
+            if i = usedDataStart_i then {
+                out("(0x%x) 0x%x 0d%d [%s]<- data start", caddr + i, caddr ! i , caddr ! i, caddr ! i);
+                test caddr ! i = nil then {
+                    out(" <- nil\n");
+                }
+                else {
+                    out("\n");
+                }
+                loop;
+            }
+            if i = dataEnd_i then {
+                out("(0x%x) 0x%x 0d%d [%s]<- data end", caddr + i, caddr ! i, caddr ! i, caddr ! i);
+                test caddr ! i = nil then {
+                    out(" <- nil\n");
+                }
+                else {
+                    out("\n");
+                }
+                loop;
+            }
+            out("(0x%x) 0x%x 0d%d [%s]", caddr + i, caddr ! i, caddr ! i, caddr ! i);
+            test caddr ! i = nil then {
+                out(" <- nil\n");
+            }
+            else {
+                out("\n");
+            }
+        }
+    }
+}
+
+let init_chunk(caddr, usedOrFree, next, prev, size) be { // caddr = chunk address, usedOrFree: used = 1 free = 0, 
+    // relative to usesdOrFree_i = 0
+    let usedDataStart_i = 1;
+    let freeDataStart_i = 3;
+    let dataEnd_i = size - 3;
+    let endOfHeap_i = heapChunk + heapSizeMax - 2;
+    let endSize_i = size - 2;
+    
+    if not is_in_range(caddr) then {
+        out("invalid caddr (init_chunk)\n");
+        return;
+    }
+    if caddr + size - 2 > endOfHeap_i then {
+        out("chunk is too large (init_chunk)\n");
+        return;
+    }
+
+    caddr ! bsize_i := size;
+
+    test usedOrFree then {
+        caddr ! usedOrFree_i := used_id;
+        for i = usedDataStart_i to dataEnd_i do {
+            caddr ! i := nil;
+        }
+    }
+    else {
+        caddr ! usedOrFree_i := free_id;
+        caddr ! next_i := next;
+        caddr ! prev_i := prev;
+        for i = freeDataStart_i to dataEnd_i do {
+            caddr ! i := nil;
+        }
+    }
+
+    caddr ! endSize_i := size;
+}
+
+let test.clear_chunk_data() be {
+    out("used\n");
+    init_chunk(heapChunk, 1, nil, nil, 8);
+    out("data\n");
+    show_chunk_data(heapChunk);
+    out("written\n");
+    write_to_used_chunk(heapChunk, 5, 1234);
+    out("data\n");
+    show_chunk_data(heapChunk);
+    out("cleared\n");
+    clear_chunk_data(heapChunk);
+    show_chunk_data(heapChunk);
+}
+
+let show_chunk(caddr) be {
+    if not is_valid(caddr) then {
+        out("invalid caddr (show_chunk)\n");
+        return;
+    }
+    out("(0x%x) 0d%d <- bsize\n", caddr + bsize_i, caddr ! bsize_i);
+    out("(0x%x) 0d%d <- usedOrFree\n", caddr + usedOrFree_i, caddr ! usedOrFree_i);
+    if (caddr ! usedOrFree_i = free_id) then {
+        out("(0x%x) 0d%d <- next\n", caddr + next_i, caddr ! next_i);
+        out("(0x%x) 0d%d <- prev\n", caddr + prev_i, caddr ! prev_i);
+        show_chunk_data(caddr);
+    }
+    if (caddr ! usedOrFree_i = used_id) then {
+        show_chunk_data(caddr);
+    }
+    out("(0x%x) 0d%d <- end size\n", caddr + ((caddr ! bsize_i) - 2), caddr ! ((caddr ! bsize_i) - 2));
+}
+
+let test.init_chunk() be {
+    out("free\n");
+    init_chunk(heapChunk, 0, 1, 2, heapSizeMax);
+    show_chunk(heapChunk);
+    out("used\n");
+    init_chunk(heapChunk, 1, nil, nil, heapSizeMax);
+    show_chunk(heapChunk);
+}
+
+let test.is_free_and_is_used() be {
+    if is_free(heapChunk) then {
+        out("heap is free\n");
+    }
+    init_chunk(heapChunk, 1, nil, nil, heapSizeMax);
+    if is_used(heapChunk) then {
+        out("heap is used\n");
+    }
+}
+
+let change_to_free(caddr) be { // must have been initialized previously
+    init_chunk(caddr, 0, nil, nil, caddr ! bsize_i);
+}
+
+let change_to_used(caddr) be { // must have been initialized previously
+    init_chunk(caddr, 1, nil, nil, caddr ! bsize_i);
+}
+
+let init_freelist() be {
+    for i = 0 to freelistSizeMax - 1 do {
+        freelist ! i := nil;
+    }
+}
+
+let add_to_freelist(caddr) be {
+    let n, top;
+
+    if not is_valid(caddr) then {
+        out("invalid caddr (add_to_freelist)\n");
+        return;
+    }
+
+    if not is_free(caddr) then {
+        out("caddr is not free (add_to_freelist)\n");
+        return;
+    }
+
+    if ((caddr ! bsize_i) rem minChunkSize) <> 0 then {
+        out("size of chunk at caddr = %d is not a multiple of 8 (add_to_freelist)\n", caddr);
+        return;
+    }
+
+    //add to the free list
+    test (caddr ! bsize_i) >= minChunkSize /\ (caddr ! bsize_i) < (minChunkSize * freelistSizeMax) then {
+        n := ((caddr ! bsize_i) - minChunkSize) / minChunkSize;
+        top := freelist ! n;
+        test top = nil then {
+            freelist ! n := caddr;
+            caddr ! next_i := nil;
+            caddr ! prev_i := nil;
+        }
+        else {
+            top ! prev_i := caddr;
+            caddr ! next_i := top;
+            caddr ! prev_i := nil;
+            freelist ! n := caddr;
+        }
+    }
+    else test (caddr ! bsize_i) >= (minChunkSize * freelistSizeMax) then {
+        n := freelistSizeMax - 1;
+        top := freelist ! n;
+        test top = nil then {
+            freelist ! n := caddr;
+            caddr ! next_i := nil;
+            caddr ! prev_i := nil;
+        }
+        else {
+            top ! prev_i := caddr;
+            caddr ! next_i := top;
+            caddr ! prev_i := nil;
+            freelist ! n := caddr;
+        }
+    }
+    else {
+        out("invalid caddr size (add_to_freelist)\n");
+    }
+}
+
+let remove_from_freelist(caddr) be {
+    let n, top;
+    
+    if not is_in_range(caddr) then {
+        out("caddr not in range (remove_from_freelist)\n");
+        return;
+    }
+
+    if ((caddr ! bsize_i) rem minChunkSize) <> 0 then {
+        out("size of chunk at caddr = %d is not a multiple of 8 (remove_from_freelist)\n", caddr);
+        return;
+    }
+
+    test (caddr ! bsize_i) > 0 /\ (caddr ! bsize_i) < (minChunkSize * freelistSizeMax) then {
+        n := ((caddr ! bsize_i) - minChunkSize) / minChunkSize;
+        top := freelist ! n;
+        test top = caddr /\ caddr ! next_i = nil then {
+            freelist ! n := nil;
+        }
+        else test top = caddr then {
+            (caddr ! next_i) ! prev_i := caddr ! prev_i;
+            freelist ! n := caddr ! next_i;
+        }
+        else test caddr ! next_i = nil then {
+            (caddr ! prev_i) ! next_i := nil;
+        }
+        else {
+            (caddr ! prev_i) ! next_i := caddr ! next_i;
+            (caddr ! next_i) ! prev_i := caddr ! prev_i;
+        }
+
+        caddr ! prev_i := nil;
+        caddr ! next_i := nil;
+    }
+    else test caddr ! bsize_i >= (minChunkSize * freelistSizeMax) then {
+        n := freelistSizeMax - 1;
+        top := freelist ! n;
+        test top = caddr /\ caddr ! next_i = nil then {
+            freelist ! n := nil;
+        }
+        else test top = caddr then {
+            (caddr ! next_i) ! prev_i := caddr ! prev_i;
+            freelist ! n := caddr ! next_i;
+        }
+        else test caddr ! next_i = nil then {
+            (caddr ! prev_i) ! next_i := nil;
+        }
+        else {
+            (caddr ! prev_i) ! next_i := caddr ! next_i;
+            (caddr ! next_i) ! prev_i := caddr ! prev_i;
+        }
+
+        caddr ! prev_i := nil;
+        caddr ! next_i := nil;
+    }
+    else {
+        out("invalid caddr size (remove_from_freelist)\n");
+    }
+}
+
+let test.remove_from_freelist() be {
+    remove_from_freelist(heapChunk);
+}
+
+let merge_freeChunks(caddr1, caddr2) be { //returns caddr of new combined free chunk, -1 otherwise
+    // this shouldn't worry about adding or removing from free list, it only merges two free chunks and checks if they're free and adjacent
+    // if they're in or outside the free list it does not care
+
+    if not is_valid(caddr1) then {
+        out("invalid caddr1 (merge_freeChunks)\n");
+        resultis -1;
+    }
+
+    if not is_valid(caddr2) then {
+        out("invalid caddr2 (merge_freeChunks)\n");
+        resultis -1;
+    }
+
+    if not is_free(caddr1) then {
+        out("caddr1 is not free (merge_freeChunks)\n");
+        resultis -1;
+    }
+
+    if not is_free(caddr2) then {
+        out("caddr2 is not free (merge_freeChunks)\n");
+        resultis -1;
+    }
+
+    if are_adjacent(caddr1, caddr2) then {
+        if left_of(caddr1) = caddr2 then {
+            init_chunk(caddr2, 0, nil, nil, (caddr1 ! bsize_i) + (caddr2 ! bsize_i));
+            clear_chunk_data(caddr2);
+            resultis caddr2;
+        }
+        if right_of(caddr1) = caddr2 then {
+            init_chunk(caddr1, 0, nil, nil, (caddr1 ! bsize_i) + (caddr2 ! bsize_i));
+            clear_chunk_data(caddr1);
+            resultis caddr1;
+        }
+    }
+
+    resultis -1;
+}
+
+let merge_check(caddr) be {
+    let left, mid, right, r;
+
+    if not is_valid(caddr) then {
+        out("invalid caddr (merge_check)\n");
+        return;
+    }
+
+    if not is_free(caddr) then {
+        out("caddr is not free (merge_check)\n");
+        return;
+    }
+
+    mid := caddr;
+
+    test is_right_free(caddr) /\ is_left_free(caddr) then {
+        left := left_of(mid);
+        right := right_of(mid);
+
+        if right = -1 then {
+            out("right = -1 if right /\ left (merge_check)\n");
+            return;
+        }
+
+        if left = -1 then {
+            out("left = -1 if righht /\ left(merge_check)\n");
+            return;
+        }
+
+        //remove left, mid, and right from free list
+        remove_from_freelist(left);
+        remove_from_freelist(mid);
+        remove_from_freelist(right);
+
+        //merge mid and right
+        r := merge_freeChunks(mid, right);
+        if r = -1 then {
+            out("r = -1 mid + right right /\ left\n");
+            return;
+        }
+
+        //merge left and (mid + right)
+        r := merge_freeChunks(left, r);
+        if r = -1 then {
+            out("r = -1 left + mid&right if right /\ left\n");
+            return;
+        }
+
+        //add back to free list and check if newly combined chunk can be combined again
+        add_to_freelist(r);
+        merge_check(r);
+    }
+    else test is_right_free(caddr) then {
+        right := right_of(mid);
+        if right = -1 then {
+            out("right = -1 if right (merge_check)\n");
+            return;
+        }
+
+        //remove mid and right from free list
+        remove_from_freelist(mid);
+        remove_from_freelist(right);
+
+        //merge mid and right
+        r := merge_freeChunks(mid, right);
+        if r = -1 then {
+            out("r = -1 mid + right if right (merge_check)\n");
+            return;
+        }
+
+        //add back to free list and check if newly combined chunk can be combined again
+        add_to_freelist(r);
+        merge_check(r);
+    }
+    else test is_left_free(caddr) then {
+        left := left_of(mid);
+        if left = -1 then {
+            out("left = -1 if left (merge_check)\n");
+            return;
+        }
+
+        //remove left and mid from free list
+        remove_from_freelist(left);
+        remove_from_freelist(mid);
+
+        //merge left and mid
+        r := merge_freeChunks(left, mid);
+        if r = -1 then {
+            out("r = -1 left + mid if left (merge_check)\n");
+            return;
+        }
+
+        add_to_freelist(r);
+        merge_check(r);
+    }
+    else {
+        return;
+    }
+}
+
+let add_and_merge(caddr) be {
+    add_to_freelist(caddr);
+    merge_check(caddr);
+}
+
+let init_heap_chunk() be {
+    heapChunk := heap + 1;
+    init_chunk(heapChunk, 0, nil, nil, heapSizeMax);
+    add_to_freelist(heapChunk);
+}
+
+let my_init() be {
+    heap := !0x101;
+    heapSizeMax := !0x100 - !0x101;
+
+    // this is so the heap will always be a multiple of 8, allows for no fragments < size 8 when splitting chunks
+    if heapSizeMax < minChunkSize then {
+        out("insufficient heapsize\n");
+        return;
+    }
+    if (heapSizeMax rem minChunkSize) <> 0 then {
+        heapSizeMax -:= heapSizeMax rem minChunkSize; 
+    }
+
+    init_freelist();
+    init_heap_chunk();
+}
+
+/* otherwise
+let my_init(ptr, size) be {
+    heap := ptr;
+    heapSizeMax := size;
+    ...
+}
+*/
+
+let return_heap() be {
+    resultis heap;
+}
+
+let return_heapSizeMax() be {
+    resultis heapSizeMax;
+}
+
+let compatible_chunkSize(size) be { //returns -1 on error, otherwise a compatible size
+    //adjusts given size to be > 0 and a multiple of minChunkSize
+    test size <= 0 then {
+        out("invalid size (compatible_chunkSize)\n");
+        resultis -1;
+    }
+    else test not (size rem minChunkSize) then {
+        resultis size;
+    }
+    else {
+        resultis size + minChunkSize - (size rem minChunkSize);
+    }
+}
+
+let split_free_chunk(caddr, size) be { //will split a free chunk and return a free chunk of requested size
+    let compSize = compatible_chunkSize(size);
+    let originalChunk = caddr;
+    let newChunk;
+
+    //is there enough space to split the chunk?  
+    test compSize = -1 \/ ((caddr ! bsize_i) - compSize) < minChunkSize then {
+        out("unable to split chunk\n");
+        resultis -1;
+    }
+    else {
+        remove_from_freelist(originalChunk); // remove original chunk from free list
+
+        init_chunk(originalChunk, 0, nil, nil, ((caddr ! bsize_i) - compSize)); // shrink original chunk
+
+        newChunk := originalChunk + (originalChunk ! bsize_i); // define newChunk
+
+        init_chunk(newChunk, 1, nil, nil, compSize); // initialize new chunk from original (as used so it doesnt get merged)
+
+        add_and_merge(originalChunk);
+
+        init_chunk(newChunk, 0, nil, nil, size); // re-initialize new chunk as free
+
+        add_to_freelist(newChunk); // add new chunk back into the list
+
+        resultis newChunk; //return newChunk
+    }
+}
+
+let search_freelist(size) be { //returns caddr of free chunk of selected size from freelist, -1 otherwise
+    let compSize = compatible_chunkSize(size), n, ptr;
+    if compSize = -1 then {
+        resultis -1;
+    }
+
+    n := (compSize - minChunkSize) / minChunkSize;
+
+    if n > freelistSizeMax - 1 then {
+        n := freelistSizeMax - 1;
+    }
+
+    ptr := freelist ! n;
+    while ptr <> nil do {
+        if ptr ! bsize_i = compSize then { // a double check
+            resultis ptr;
+        }
+        ptr := ptr ! next_i;
+    }
+
+    resultis -1;
+}
+
+let next_biggest_free_chunk(size) be { //returns caddr of next biggest free chunk in freelist, -1 otherwise
+    let compSize = compatible_chunkSize(size), n, ptr;
+    if compSize = -1 then {
+        resultis -1;
+    }
+
+    n := (compSize - minChunkSize) / minChunkSize;
+
+    if n > freelistSizeMax - 1 then {
+        n := freelistSizeMax - 2; // -2 so that freelist[freelistSizeMax - 1] can be searched in the following for loop
+    }
+
+    for i = (n + 1) to freelistSizeMax - 1 do {
+        test freelist ! i = nil then {
+            loop;
+        }
+        else {
+            ptr := freelist ! i;
+            while ptr <> nil do {
+                if ptr ! bsize_i > compSize then {
+                    resultis ptr;
+                }
+                ptr := ptr ! next_i;
+            }
+        }
+    }
+
+    resultis -1;
+}
+
+let my_newvec(size) be { //at the moment any given chunk from my_newvec can be overwritten, end of newvecs must me checked using virtual memory
+    let compSize = compatible_chunkSize(size), n, caddr;
+
+    if compSize = -1 then {
+        return; // error message handled by compatible_chunkSize
+    }
+
+    caddr := search_freelist(compSize);
+    test caddr = -1 then { // if search_freelist fails
+        caddr := next_biggest_free_chunk(compSize);
+        test caddr = -1 then { // if no bigger chunk to be split is found
+            out("no space for newvec (my_newvec)\n");
+            return;
+        }
+        else { // bigger chunk to be split is found
+            caddr := split_free_chunk(caddr, compSize);
+            test caddr = -1 then { // split_free_chunk error
+                return; // error message handled by split_free_chunk
+            }
+            else { // new free chunk is made and returned
+                remove_from_freelist(caddr);
+                change_to_used(caddr);
+                resultis caddr + 1; // + 1 to point to chunk data
+            }
+        }
+    }
+    else { // if free chunk of compSize is found
+        remove_from_freelist(caddr);
+        change_to_used(caddr);
+        resultis caddr + 1; // + 1 to point to chunk data
+    }
+}
+
+let my_freevec(daddr) be { // daddr = beginning of data section in a chunk
+    if not is_valid(daddr - 1) then {
+        out("invalid daddr (my_freevec)\n");
+        return;
+    }
+    if not is_used(daddr -1) then {
+        out("daddr is not used (my_freevec)\n");
+        return;
+    }
+    clear_chunk_data(daddr - 1);
+    init_chunk(daddr - 1, 0, nil, nil, (daddr - 1) ! bsize_i);
+    add_and_merge(daddr - 1);
+}
+
+let total_free_chunks_of_size(size) be {
+    let n, count = 0, ptr;
+    if not (size rem minChunkSize = 0 /\ size > 0) then {
+        out("invalid chunk size (total_chunks_of_size)\n");
+        return;
+    } 
+
+    n := (size - minChunkSize) / minChunkSize;
+    ptr := freelist ! n;
+    while ptr <> nil do {
+        count +:= 1;
+        ptr := ptr ! next_i;
+    }
+    
+    resultis count;
+}
+
+let freelist_summary() be {
+    let size, total;  
+    out("summary of freelist\n");
+    for n = 0 to freelistSizeMax - 1 do {
+        size := minChunkSize * n + minChunkSize;
+        total := total_free_chunks_of_size(size);
+        if total > 0 then {
+            test size = freelistSizeMax * minChunkSize then {
+                out("size: >= %d, total: %d\n", size, total_free_chunks_of_size(size));
+            }
+            else {
+                out("size: %d, total: %d\n", size, total_free_chunks_of_size(size));
+            }
+        }
+    }
+}
+
+let print_all_free_chunks() be {
+    let ptr;
+    for n = 0 to freelistSizeMax - 1 do {
+        ptr := freelist ! n;
+        while ptr <> nil do {
+            out("(0x%x) size = %d\n", ptr, ptr ! bsize_i);
+            ptr := ptr ! next_i;
+        }
+    }
+}
+
+let printfrees() be {
+    freelist_summary();
+    print_all_free_chunks();
+}
+
+let pre_start() be { 
+    init := my_init;
+    newvec := my_newvec;
+    freevec := my_freevec;
+    init();
+}
+
+export {my_init, my_freevec, my_newvec, return_heap, return_heapSizeMax, show_chunk, printfrees}
+

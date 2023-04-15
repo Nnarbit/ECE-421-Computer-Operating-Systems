@@ -1,0 +1,45 @@
+
+Write a BCPL program that reads a sequence of strings typed by the user
+and creates a linked list containing them all.
+
+But there will be some special command words. These should be obeyed but
+not inserted into the list
+
+An input of END will be used to mark the end of the input sequence. The
+progrm should stop.
+
+An input of ALL means that the whole list should be printed. It is
+perfectly OK for the list to come out backwards.
+
+An input of DELETE means that the next word is to be removed from the
+list and its memory (for the link object and for the string) must be
+recycled with freevec (even though freevec doesn't do anything yet).
+
+Remember you will need to implement and use strdup().
+
+Remember that strings are packed, four bytes per word, into an array.
+You use the "byte N of S" syntax to access the individual bytes. Also
+remember that an extra 0 byte is added to mark the end of the string.
+
+Example run:
+
+$ run hw4
+Enter the strings and deletions:
+> hello
+> this
+> program
+> works
+> ALL
+works program this hello
+> properly
+> DELETE program
+> dog
+> ALL
+dog properly works this hello
+> cat
+> DELETE dog
+> ALL
+cat properly works this hello
+> END
+$
+

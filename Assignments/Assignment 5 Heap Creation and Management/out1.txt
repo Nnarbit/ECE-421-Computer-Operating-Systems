@@ -1,0 +1,205 @@
+x to exit.
+?N to examine any chunk. N is its real address, which is the value returned by newvec minus two.
+vf to freevec the variable named v. Variable names are single lower-case letters.
+v? to see the value of variable v.
+vnN to newvec(N), N is number of words wanted, v is the variable in which the returned value will be stored,
+                  the response is v = A, where A is the pointer returned by newvec.
+
+summary of freelist
+size: >= 8000, total: 1
+(0x1C7D) size = 1041280
+
+> an1041000
+a = 7574
+7572:   B8F47C 1041000 ... 1041000
+summary of freelist
+size: 280, total: 1
+(0x1C7D) size = 280
+
+> an  bn1
+b = 7566
+7564:   B8F47C 8 ... 8
+summary of freelist
+size: 272, total: 1
+(0x1C7D) size = 272
+
+> cn9
+c = 7550
+7548:   B8F47C 16 ... 16
+summary of freelist
+size: 256, total: 1
+(0x1C7D) size = 256
+
+> dn32
+d = 7518
+7516:   B8F47C 32 ... 32
+summary of freelist
+size: 224, total: 1
+(0x1C7D) size = 224
+
+> en100
+e = 7414
+7412:   B8F47C 104 ... 104
+summary of freelist
+size: 120, total: 1
+(0x1C7D) size = 120
+
+> fn8
+f = 7406
+7404:   B8F47C 8 ... 8
+summary of freelist
+size: 112, total: 1
+(0x1C7D) size = 112
+
+> gn16
+g = 7390
+7388:   B8F47C 16 ... 16
+summary of freelist
+size: 96, total: 1
+(0x1C7D) size = 96
+
+> hn80
+h = 7310
+7308:   B8F47C 80 ... 80
+summary of freelist
+size: 16, total: 1
+(0x1C7D) size = 16
+
+> j in16
+i = 7294
+7292:   B8F47C 16 ... 16
+summary of freelist
+
+> a?
+7572:   B8F47C, USED, size = 1041000, ..., 1041000
+
+> b?
+7564:   B8F47C, USED, size = 8, ..., 8
+
+> c?
+7548:   B8F47C, USED, size = 16, ..., 16
+
+> d?
+7516:   B8F47C, USED, size = 32, ..., 32
+
+> e?
+7412:   B8F47C, USED, size = 104, ..., 104
+
+> f?
+7404:   B8F47C, USED, size = 8, ..., 8
+
+> g?
+7388:   B8F47C, USED, size = 16, ..., 16
+
+> h?
+7308:   B8F47C, USED, size = 80, ..., 80
+
+> i?
+7292:   B8F47C, USED, size = 16, ..., 16
+
+> ?a
+[B[A[B    
+
+?a b
+?c
+?1973
+1973:  71E0003
+That is not a valid code for the beginning of a chunk
+
+> ?7572
+7572:   B8F47C, USED, size = 1041000, ..., 1041000
+
+> ?7564
+7564:   B8F47C, USED, size = 8, ..., 8
+
+> ?7548
+7548:   B8F47C, USED, size = 16, ..., 16
+
+> ?7516
+7516:   B8F47C, USED, size = 32, ..., 32
+
+> ?7412
+7412:   B8F47C, USED, size = 104, ..., 104
+
+> ?7404
+7404:   B8F47C, USED, size = 8, ..., 8
+
+> ?7388
+7388:   B8F47C, USED, size = 16, ..., 16
+
+> ?7308
+7308:   B8F47C, USED, size = 80, ..., 80
+
+> ?7292
+7292:   B8F47C, USED, size = 16, ..., 16
+
+> vfd   df
+summary of freelist
+size: 32, total: 1
+(0x1D5D) size = 32
+
+> a bf
+summary of freelist
+size: 8, total: 1
+size: 32, total: 1
+(0x1D8D) size = 8
+(0x1D5D) size = 32
+
+> ff
+summary of freelist
+size: 8, total: 2
+size: 32, total: 1
+(0x1CED) size = 8
+(0x1D8D) size = 8
+(0x1D5D) size = 32
+
+> gf
+summary of freelist
+size: 8, total: 1
+size: 24, total: 1
+size: 32, total: 1
+(0x1D8D) size = 8
+(0x1CDD) size = 24
+(0x1D5D) size = 32
+
+> if
+summary of freelist
+size: 8, total: 1
+size: 16, total: 1
+size: 24, total: 1
+size: 32, total: 1
+(0x1D8D) size = 8
+(0x1C7D) size = 16
+(0x1CDD) size = 24
+(0x1D5D) size = 32
+
+> hf
+summary of freelist
+size: 8, total: 1
+size: 32, total: 1
+size: 120, total: 1
+(0x1D8D) size = 8
+(0x1D5D) size = 32
+(0x1C7D) size = 120
+
+> cf
+summary of freelist
+size: 56, total: 1
+size: 120, total: 1
+(0x1D5D) size = 56
+(0x1C7D) size = 120
+
+> df
+That is not a used chunk
+
+> ef
+summary of freelist
+size: 280, total: 1
+(0x1C7D) size = 280
+
+> af
+summary of freelist
+size: >= 8000, total: 1
+(0x1C7D) size = 1041280
+
+> x
